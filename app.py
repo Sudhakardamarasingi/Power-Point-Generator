@@ -85,7 +85,12 @@ st.markdown(
 
 # ---------- HELPERS ----------
 def parse_ai_response(response: requests.Response):
-    """Parse AI/n8n response. Return dict on success, or None on error."""
+    """
+    Parse AI/n8n response.
+    - Try direct JSON.
+    - If that fails, try to extract the first {...} block and parse that.
+    - On failure, show an error and return None.
+    """
     raw = response.text.strip()
 
     if not raw:
@@ -95,12 +100,28 @@ def parse_ai_response(response: requests.Response):
         )
         return None
 
+    # 1) Try direct JSON parse first
     try:
         return json.loads(raw)
-    except json.JSONDecodeError as e:
-        st.error(f"AI returned invalid JSON: {e}")
-        st.code(raw[:500])
-        return None
+    except json.JSONDecodeError:
+        pass  # we'll try to clean it up below
+
+    # 2) Try to extract the first JSON object between outermost { ... }
+    start = raw.find("{")
+    end = raw.rfind("}")
+    if start != -1 and end != -1 and end > start:
+        candidate = raw[start : end + 1]
+        try:
+            return json.loads(candidate)
+        except json.JSONDecodeError as e2:
+            st.error(f"AI returned invalid JSON even after cleanup: {e2}")
+            st.code(candidate[:1000])
+            return None
+
+    # 3) If we can't even find a { ... } block, show the raw text
+    st.error("AI returned text that doesn't look like JSON.")
+    st.code(raw[:1000])
+    return None
 
 
 def build_ppt_from_spec(spec: dict) -> bytes:
