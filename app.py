@@ -41,7 +41,7 @@ st.markdown(
         text-align: center;
     }
 
-    /* Purple primary button: like "Create a presentation with AI" */
+    /* Purple primary button: "Create a presentation with AI" */
     div.stButton > button {
         background: #8b5cf6;
         color: #ffffff;
@@ -60,23 +60,23 @@ st.markdown(
         box-shadow: 0 14px 30px rgba(139, 92, 246, 0.45);
     }
 
-    /* Bright blue download pill so it pops on dark bg */
+    /* Cyan download pill so it pops on dark bg */
     div.stDownloadButton > button {
-        background: #0ea5e9;
+        background: #06b6d4;
         color: #0f172a;
         border-radius: 999px;
         border: none;
         padding: 0.6rem 1.8rem;
         font-weight: 600;
         font-size: 0.95rem;
-        box-shadow: 0 10px 25px rgba(15, 23, 42, 0.75);
+        box-shadow: 0 10px 25px rgba(6, 182, 212, 0.45);
         transition: all 0.15s ease-out;
         width: auto;
     }
     div.stDownloadButton > button:hover {
-        background: #0284c7;
-        transform: translateY(-1px);
-        box-shadow: 0 14px 30px rgba(15, 23, 42, 0.9);
+        background: #0891b2;
+        transform: translateY(-2px);
+        box-shadow: 0 14px 30px rgba(6, 182, 212, 0.6);
     }
     </style>
     """,
@@ -84,11 +84,26 @@ st.markdown(
 )
 
 # ---------- HELPERS ----------
-def parse_ai_response(response: requests.Response) -> dict:
+def parse_ai_response(response: requests.Response):
+    """Parse AI/n8n response. Return dict on success, or None on error."""
     raw = response.text.strip()
+
     if not raw:
-        raise ValueError("AI response is empty")
-    return json.loads(raw)
+        # empty body from n8n
+        st.error(
+            "Backend returned an empty response. "
+            "Check your n8n 'Respond to Webhook' node and ensure it returns the AI JSON."
+        )
+        return None
+
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError as e:
+        # Show snippet to help debug formatting issues
+        st.error(f"AI returned invalid JSON: {e}")
+        st.code(raw[:500])
+        return None
+
 
 def build_ppt_from_spec(spec: dict) -> bytes:
     prs = Presentation()
@@ -96,11 +111,13 @@ def build_ppt_from_spec(spec: dict) -> bytes:
     if not slides:
         raise ValueError("No 'slides' array found in AI response")
 
+    # Title slide
     first = slides[0]
     slide = prs.slides.add_slide(prs.slide_layouts[0])
     slide.shapes.title.text = spec.get("title", first.get("heading", "Presentation"))
     slide.placeholders[1].text = first.get("notes", "")
 
+    # Content slides
     for slide_spec in slides[1:]:
         slide = prs.slides.add_slide(prs.slide_layouts[1])
         slide.shapes.title.text = slide_spec.get("heading", "")
@@ -126,8 +143,8 @@ if "ppt_bytes" not in st.session_state:
 if "ready" not in st.session_state:
     st.session_state["ready"] = False
 
-# helper to clear after download
-def _clear_after_download():
+def clear_after_download():
+    """Hide download button after click (optional)."""
     st.session_state["ppt_bytes"] = None
     st.session_state["ready"] = False
 
@@ -191,20 +208,34 @@ with st.container(border=True):
                     status_placeholder.write("🤖 Agent finished. Parsing JSON...")
                     spec = parse_ai_response(resp)
 
-                    status_placeholder.write("📑 Building PPT...")
-                    for i in range(16, 95):
-                        prog.progress(i)
-                        time.sleep(0.01)
+                    # If parse failed, don't try to build PPT
+                    if spec is None:
+                        prog.progress(0)
+                        st.session_state["ready"] = False
+                        st.session_state["ppt_bytes"] = None
+                    else:
+                        status_placeholder.write("📑 Building PPT...")
+                        for i in range(16, 95):
+                            prog.progress(i)
+                            time.sleep(0.01)
 
-                    ppt_bytes = build_ppt_from_spec(spec)
-                    st.session_state["ppt_bytes"] = ppt_bytes
-                    st.session_state["ready"] = True
+                        try:
+                            ppt_bytes = build_ppt_from_spec(spec)
+                        except Exception as e:
+                            prog.progress(0)
+                            status_placeholder.empty()
+                            st.error(f"Error while building PPT: {e}")
+                            st.session_state["ready"] = False
+                            st.session_state["ppt_bytes"] = None
+                        else:
+                            st.session_state["ppt_bytes"] = ppt_bytes
+                            st.session_state["ready"] = True
 
-                    prog.progress(100)
-                    status_placeholder.write("✅ Presentation ready to download.")
-                    success_placeholder.success("PPT generated successfully.")
+                            prog.progress(100)
+                            status_placeholder.write("✅ Presentation ready to download.")
+                            success_placeholder.success("PPT generated successfully.")
 
-    # ---------- DOWNLOAD BUTTON (INSIDE THE CARD) ----------
+    # ---------- DOWNLOAD BUTTON (INSIDE CARD) ----------
     if st.session_state["ready"] and st.session_state["ppt_bytes"]:
         st.markdown("<br>", unsafe_allow_html=True)
         st.download_button(
@@ -213,5 +244,5 @@ with st.container(border=True):
             file_name="presentation.pptx",
             mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
             key="download_ppt",
-            on_click=_clear_after_download,   # hide button after click
+            on_click=clear_after_download,  # remove this if you want it to stay visible
         )
