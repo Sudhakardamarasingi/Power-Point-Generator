@@ -5,7 +5,7 @@ import streamlit as st
 from pptx import Presentation
 
 # Your n8n production webhook URL
-WEBHOOK_URL = "https://sudha-mad-max-1997.app.n8n.cloud/webhook/f4892281-e1a0-429c-ae0a-16661a18e576"
+WEBHOOK_URL = "https://sudha-mad-max-1997.app.n8n.cloud/webhook-test/f4892281-e1a0-429c-ae0a-16661a18e576"
 
 
 def parse_ai_response(response: requests.Response) -> dict:
