@@ -126,6 +126,11 @@ if "ppt_bytes" not in st.session_state:
 if "ready" not in st.session_state:
     st.session_state["ready"] = False
 
+# helper to clear after download
+def _clear_after_download():
+    st.session_state["ppt_bytes"] = None
+    st.session_state["ready"] = False
+
 # ---------- HEADER ----------
 st.markdown(
     """
@@ -148,7 +153,7 @@ with st.container(border=True):
         height=160,
     )
 
-    generate = st.button("Create a presentation with AI")  # no use_container_width
+    generate = st.button("Create a presentation with AI")
 
     progress_placeholder = st.empty()
     status_placeholder = st.empty()
@@ -199,12 +204,14 @@ with st.container(border=True):
                     status_placeholder.write("✅ Presentation ready to download.")
                     success_placeholder.success("PPT generated successfully.")
 
-# ---------- DOWNLOAD BUTTON ----------
-if st.session_state["ready"] and st.session_state["ppt_bytes"]:
-    st.markdown("<br>", unsafe_allow_html=True)
-    st.download_button(
-        label="⬇ Download PPTX",
-        data=st.session_state["ppt_bytes"],
-        file_name="presentation.pptx",
-        mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
-    )  # no use_container_width
+    # ---------- DOWNLOAD BUTTON (INSIDE THE CARD) ----------
+    if st.session_state["ready"] and st.session_state["ppt_bytes"]:
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.download_button(
+            label="⬇ Download PPTX",
+            data=st.session_state["ppt_bytes"],
+            file_name="presentation.pptx",
+            mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            key="download_ppt",
+            on_click=_clear_after_download,   # hide button after click
+        )
