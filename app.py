@@ -5,6 +5,7 @@ import requests
 import streamlit as st
 from pptx import Presentation
 
+# ---------- CONFIG ----------
 WEBHOOK_URL = "https://sudha-mad-max-1997.app.n8n.cloud/webhook/f4892281-e1a0-429c-ae0a-16661a18e576"
 
 st.set_page_config(
@@ -17,7 +18,6 @@ st.set_page_config(
 st.markdown(
     """
     <style>
-    /* Center the whole app content */
     .block-container {
         max-width: 880px;
         padding-top: 2.5rem;
@@ -74,52 +74,74 @@ st.markdown(
 
 # ---------- HELPERS ----------
 def parse_ai_response(response: requests.Response) -> dict:
+    """
+    Expecting n8n to return a plain-text JSON string (from {{$json["output"]}})
+    """
     raw = response.text.strip()
     if not raw:
         raise ValueError("AI response is empty")
-    return json.loads(raw)
+
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError as e:
+        # Show the raw response to debug if needed
+        st.error(f"Could not parse AI JSON response: {e}")
+        st.code(raw, language="json")
+        raise
 
 
 def build_ppt_from_spec(spec: dict) -> bytes:
+    """
+    Expected JSON format:
+    {
+      "title": "Presentation Title",
+      "slides": [
+        {
+          "heading": "Slide heading",
+          "bullets": ["point 1", "point 2"],
+          "notes": "optional presenter notes",
+          "image_prompt": "optional"
+        },
+        ...
+      ]
+    }
+    """
     prs = Presentation()
 
     slides = spec.get("slides", [])
     if not slides:
         raise ValueError("No 'slides' array found in AI response")
 
+    # Title slide
     first = slides[0]
     title_slide_layout = prs.slide_layouts[0]
     slide = prs.slides.add_slide(title_slide_layout)
-    title_shape = slide.shapes.title
-    subtitle_shape = slide.placeholders[1]
+    slide.shapes.title.text = spec.get("title") or first.get("heading", "Presentation")
+    slide.placeholders[1].text = first.get("notes", "")
 
-    title_shape.text = spec.get("title") or first.get("heading", "Presentation")
-    subtitle_shape.text = first.get("notes", "")
-
+    # Content slides
     content_layout = prs.slide_layouts[1]
-
     for slide_spec in slides[1:]:
         slide = prs.slides.add_slide(content_layout)
-        title_shape = slide.shapes.title
-        body_shape = slide.placeholders[1]
+        slide.shapes.title.text = slide_spec.get("heading", "")
 
-        title_shape.text = slide_spec.get("heading", "")
-
-        text_frame = body_shape.text_frame
-        text_frame.clear()
+        body = slide.placeholders[1]
+        tf = body.text_frame
+        tf.clear()
 
         bullets = slide_spec.get("bullets", [])
         if bullets:
-            text_frame.text = bullets[0]
+            tf.text = bullets[0]
             for bullet in bullets[1:]:
-                p = text_frame.add_paragraph()
+                p = tf.add_paragraph()
                 p.text = bullet
                 p.level = 0
 
-    buffer = io.BytesIO()
-    prs.save(buffer)
-    buffer.seek(0)
-    return buffer.getvalue()
+    buf = io.BytesIO()
+    prs.save(buf)
+    buf.seek(0)
+    return buf.getvalue()
+
 
 # ---------- STATE ----------
 if "ppt_bytes" not in st.session_state:
@@ -151,6 +173,7 @@ with st.container():
     st.subheader("Describe your presentation", anchor=False)
     st.caption("Enter the topic and any key points you want covered.")
 
+    # This is your single prompt area
     prompt = st.text_area(
         label="",
         placeholder="Example: Create an 8-slide PPT explaining agentic AI for non-technical business leaders...",
@@ -159,20 +182,20 @@ with st.container():
 
     generate = st.button("✨ Generate PPT", use_container_width=True)
 
-    # Progress + status live inside the same card
     progress_placeholder = st.empty()
     status_placeholder = st.empty()
-
-    # Download sits inside the card too
     download_placeholder = st.empty()
 
     st.markdown("</div>", unsafe_allow_html=True)
 
-# ---------- ACTION + SMOOTH PROGRESS ----------
+# ---------- ACTION + PROGRESS ----------
 if generate:
     if not prompt or not prompt.strip():
         st.warning("Please enter a topic or description for the PPT.")
     else:
+        # Reset previous file
+        st.session_state["ppt_bytes"] = None
+
         progress = progress_placeholder.progress(0)
         status = status_placeholder
 
@@ -223,7 +246,7 @@ if generate:
             status_placeholder.empty()
             st.error(f"Error while generating PPT:\n{e}")
 
-# ---------- DOWNLOAD (inside card, under progress) ----------
+# ---------- DOWNLOAD (only when ready) ----------
 if st.session_state["ppt_bytes"]:
     with download_placeholder:
         st.markdown("---")
