@@ -31,49 +31,52 @@ st.markdown(
         margin-right: auto;
     }
 
-    /* Purple primary button: "Create a presentation with AI" */
+    textarea {
+        border-radius: 14px !important;
+        border: 1px solid rgba(148, 163, 184, 0.6) !important;
+    }
+
+    /* Center button containers and keep width to content */
+    div.stButton, div.stDownloadButton {
+        text-align: center;
+    }
+
+    /* Purple primary button: like "Create a presentation with AI" */
     div.stButton > button {
         background: #8b5cf6;
         color: #ffffff;
         border-radius: 999px;
         border: none;
-        padding: 0.6rem 1.8rem;
+        padding: 0.55rem 1.6rem;
         font-weight: 600;
         font-size: 0.95rem;
         box-shadow: 0 10px 25px rgba(139, 92, 246, 0.35);
         transition: all 0.15s ease-out;
+        width: auto;
     }
     div.stButton > button:hover {
         background: #7c3aed;
         transform: translateY(-1px);
         box-shadow: 0 14px 30px rgba(139, 92, 246, 0.45);
     }
-    div.stButton > button:focus:not(:active) {
-        outline: none;
-        box-shadow: 0 0 0 2px #ede9fe;
-    }
 
-    /* Black download pill */
+    /* Bright blue download pill so it pops on dark bg */
     div.stDownloadButton > button {
-        background: #030712;
-        color: #ffffff;
+        background: #0ea5e9;
+        color: #0f172a;
         border-radius: 999px;
-        border: 1px solid #4b5563;
-        padding: 0.65rem 1.9rem;
+        border: none;
+        padding: 0.6rem 1.8rem;
         font-weight: 600;
         font-size: 0.95rem;
         box-shadow: 0 10px 25px rgba(15, 23, 42, 0.75);
         transition: all 0.15s ease-out;
+        width: auto;
     }
     div.stDownloadButton > button:hover {
-        background: #020617;
-        border-color: #9ca3af;
+        background: #0284c7;
         transform: translateY(-1px);
         box-shadow: 0 14px 30px rgba(15, 23, 42, 0.9);
-    }
-    textarea {
-        border-radius: 14px !important;
-        border: 1px solid rgba(148, 163, 184, 0.6) !important;
     }
     </style>
     """,
@@ -145,7 +148,7 @@ with st.container(border=True):
         height=160,
     )
 
-    generate = st.button("Create a presentation with AI", use_container_width=True)
+    generate = st.button("Create a presentation with AI")  # no use_container_width
 
     progress_placeholder = st.empty()
     status_placeholder = st.empty()
@@ -193,17 +196,15 @@ with st.container(border=True):
                     st.session_state["ready"] = True
 
                     prog.progress(100)
-                    # ✅ update status so it no longer says "Building PPT..."
-                    status_placeholder.write("✅ Deck ready to download.")
+                    status_placeholder.write("✅ Presentation ready to download.")
                     success_placeholder.success("PPT generated successfully.")
 
 # ---------- DOWNLOAD BUTTON ----------
 if st.session_state["ready"] and st.session_state["ppt_bytes"]:
     st.markdown("<br>", unsafe_allow_html=True)
     st.download_button(
-        label="⬇  DOWNLOAD PPTX",
+        label="⬇ Download PPTX",
         data=st.session_state["ppt_bytes"],
         file_name="presentation.pptx",
         mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
-        use_container_width=True,
-    )
+    )  # no use_container_width
