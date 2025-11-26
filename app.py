@@ -16,7 +16,7 @@ if st.button("Get PPT"):
         file.write(response.json()["output"])
       subprocess.run(["python","app1.py"])
 
-with  open("app1.py","rb") as f1
+with  open("app1.py","rb") as f1:
 st.download_button(
     label = "Download PPT",
     data = f1,
