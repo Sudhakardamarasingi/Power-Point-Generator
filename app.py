@@ -5,7 +5,6 @@ import requests
 import streamlit as st
 from pptx import Presentation
 
-# ---------- CONFIG ----------
 WEBHOOK_URL = "https://sudha-mad-max-1997.app.n8n.cloud/webhook/f4892281-e1a0-429c-ae0a-16661a18e576"
 
 st.set_page_config(
@@ -14,30 +13,30 @@ st.set_page_config(
     layout="wide",
 )
 
-
 # ---------- STYLES ----------
 st.markdown(
     """
     <style>
+    /* Center the whole app content */
+    .block-container {
+        max-width: 880px;
+        padding-top: 2.5rem;
+        padding-bottom: 3rem;
+        margin: 0 auto;
+    }
+
     .stApp {
         background: radial-gradient(circle at top left, #2b3a67 0, #050816 45%, #050816 100%);
         color: #f9fafb;
         font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
 
-    .main-block {
-        max-width: 980px;
-        margin: 0 auto;
-        padding-top: 2.2rem;
-        padding-bottom: 3rem;
-    }
-
     .glass-card {
-        background: rgba(15, 23, 42, 0.88);
+        background: rgba(15, 23, 42, 0.9);
         border-radius: 18px;
-        padding: 1.75rem 2rem;
+        padding: 1.6rem 1.8rem 1.8rem;
         border: 1px solid rgba(148, 163, 184, 0.35);
-        box-shadow: 0 18px 60px rgba(15, 23, 42, 0.75);
+        box-shadow: 0 18px 50px rgba(15, 23, 42, 0.8);
         backdrop-filter: blur(16px);
     }
 
@@ -72,7 +71,6 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
-
 
 # ---------- HELPERS ----------
 def parse_ai_response(response: requests.Response) -> dict:
@@ -123,32 +121,28 @@ def build_ppt_from_spec(spec: dict) -> bytes:
     buffer.seek(0)
     return buffer.getvalue()
 
-
 # ---------- STATE ----------
 if "ppt_bytes" not in st.session_state:
     st.session_state["ppt_bytes"] = None
 
-
 # ---------- HEADER ----------
 st.markdown(
     """
-    <div class="main-block">
-      <div style="text-align:center; margin-bottom:1.2rem;">
-        <div class="pill-badge">
-          <span class="pill-dot"></span>
-          <span>Agentic AI · n8n · Streamlit</span>
-        </div>
-        <h1 style="margin-top:1rem; margin-bottom:0.4rem;">
-          Agentic PowerPoint Designer
-        </h1>
-        <p style="opacity:0.85; max-width:620px; margin:0 auto;">
-          Turn a single prompt into a complete, editable slide deck.
-        </p>
+    <div style="text-align:center; margin-bottom:1.8rem;">
+      <div class="pill-badge">
+        <span class="pill-dot"></span>
+        <span>Agentic AI · n8n · Streamlit</span>
       </div>
+      <h1 style="margin-top:1rem; margin-bottom:0.3rem;">
+        Agentic PowerPoint Designer
+      </h1>
+      <p style="opacity:0.85; max-width:540px; margin:0 auto;">
+        Turn a single prompt into a complete, editable slide deck.
+      </p>
+    </div>
     """,
     unsafe_allow_html=True,
 )
-
 
 # ---------- MAIN CARD ----------
 with st.container():
@@ -165,28 +159,30 @@ with st.container():
 
     generate = st.button("✨ Generate PPT", use_container_width=True)
 
+    # Progress + status live inside the same card
+    progress_placeholder = st.empty()
+    status_placeholder = st.empty()
+
+    # Download sits inside the card too
+    download_placeholder = st.empty()
+
     st.markdown("</div>", unsafe_allow_html=True)
-
-st.markdown("</div>", unsafe_allow_html=True)  # close main-block
-
 
 # ---------- ACTION + SMOOTH PROGRESS ----------
 if generate:
     if not prompt or not prompt.strip():
         st.warning("Please enter a topic or description for the PPT.")
     else:
-        progress = st.progress(0)
-        status_text = st.empty()
+        progress = progress_placeholder.progress(0)
+        status = status_placeholder
 
         try:
-            # Small warm-up animation so the bar starts moving immediately
-            status_text.markdown("🧩 Preparing your request...")
+            status.markdown("🧩 Preparing your request...")
             for i in range(1, 16):
                 progress.progress(i)
                 time.sleep(0.02)
 
-            # Call backend (this is the main blocking part, so bar holds around 15–25%)
-            status_text.markdown("🔗 Contacting agentic backend...")
+            status.markdown("🔗 Contacting agentic backend...")
             progress.progress(25)
             resp = requests.post(
                 WEBHOOK_URL,
@@ -194,14 +190,14 @@ if generate:
                 timeout=180,
             )
 
-            # Once we’re back from n8n, advance smoothly to ~60
-            status_text.markdown("🤖 Agent finished. Parsing slide structure...")
+            status.markdown("🤖 Agent finished. Parsing slide structure...")
             for i in range(26, 61):
                 progress.progress(i)
                 time.sleep(0.01)
 
             if resp.status_code != 200:
                 progress.progress(0)
+                status_placeholder.empty()
                 st.error(
                     f"PPT generation failed.\n"
                     f"Status: {resp.status_code}\n"
@@ -210,8 +206,7 @@ if generate:
             else:
                 spec = parse_ai_response(resp)
 
-                # Simulate some visible work while we build the PPT
-                status_text.markdown("📑 Building your PowerPoint file...")
+                status.markdown("📑 Building your PowerPoint file...")
                 for i in range(61, 90):
                     progress.progress(i)
                     time.sleep(0.01)
@@ -219,23 +214,23 @@ if generate:
                 ppt_bytes = build_ppt_from_spec(spec)
                 st.session_state["ppt_bytes"] = ppt_bytes
 
-                # Finish up
                 progress.progress(100)
-                status_text.markdown("✅ Deck ready to download.")
+                status.markdown("✅ Deck ready to download.")
                 st.success("PPT generated successfully.")
 
         except Exception as e:
             progress.progress(0)
+            status_placeholder.empty()
             st.error(f"Error while generating PPT:\n{e}")
 
-
-# ---------- DOWNLOAD SECTION ----------
+# ---------- DOWNLOAD (inside card, under progress) ----------
 if st.session_state["ppt_bytes"]:
-    st.markdown("---")
-    st.download_button(
-        label="⬇️ Download PPTX",
-        data=st.session_state["ppt_bytes"],
-        file_name="presentation.pptx",
-        mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
-        use_container_width=True,
-    )
+    with download_placeholder:
+        st.markdown("---")
+        st.download_button(
+            label="⬇️ Download PPTX",
+            data=st.session_state["ppt_bytes"],
+            file_name="presentation.pptx",
+            mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            use_container_width=True,
+        )
