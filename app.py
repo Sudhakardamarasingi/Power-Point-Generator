@@ -22,6 +22,7 @@ st.markdown(
         color: #f9fafb;
         font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
+
     .block-container {
         max-width: 880px;
         padding-top: 2rem;
@@ -29,13 +30,50 @@ st.markdown(
         margin-left: auto;
         margin-right: auto;
     }
+
+    /* Purple primary button: "Create a presentation with AI" */
+    div.stButton > button {
+        background: #8b5cf6;
+        color: #ffffff;
+        border-radius: 999px;
+        border: none;
+        padding: 0.6rem 1.8rem;
+        font-weight: 600;
+        font-size: 0.95rem;
+        box-shadow: 0 10px 25px rgba(139, 92, 246, 0.35);
+        transition: all 0.15s ease-out;
+    }
+    div.stButton > button:hover {
+        background: #7c3aed;
+        transform: translateY(-1px);
+        box-shadow: 0 14px 30px rgba(139, 92, 246, 0.45);
+    }
+    div.stButton > button:focus:not(:active) {
+        outline: none;
+        box-shadow: 0 0 0 2px #ede9fe;
+    }
+
+    /* Black download pill */
+    div.stDownloadButton > button {
+        background: #030712;
+        color: #ffffff;
+        border-radius: 999px;
+        border: 1px solid #4b5563;
+        padding: 0.65rem 1.9rem;
+        font-weight: 600;
+        font-size: 0.95rem;
+        box-shadow: 0 10px 25px rgba(15, 23, 42, 0.75);
+        transition: all 0.15s ease-out;
+    }
+    div.stDownloadButton > button:hover {
+        background: #020617;
+        border-color: #9ca3af;
+        transform: translateY(-1px);
+        box-shadow: 0 14px 30px rgba(15, 23, 42, 0.9);
+    }
     textarea {
         border-radius: 14px !important;
         border: 1px solid rgba(148, 163, 184, 0.6) !important;
-    }
-    button[kind="primary"] {
-        border-radius: 999px !important;
-        font-weight: 600 !important;
     }
     </style>
     """,
@@ -79,11 +117,11 @@ def build_ppt_from_spec(spec: dict) -> bytes:
     buf.seek(0)
     return buf.getvalue()
 
-# ---------- SESSION STATE ----------
+# ---------- STATE ----------
 if "ppt_bytes" not in st.session_state:
     st.session_state["ppt_bytes"] = None
-if "has_generated" not in st.session_state:
-    st.session_state["has_generated"] = False
+if "ready" not in st.session_state:
+    st.session_state["ready"] = False
 
 # ---------- HEADER ----------
 st.markdown(
@@ -101,32 +139,30 @@ with st.container(border=True):
     st.subheader("Describe your presentation", anchor=False)
     st.caption("Enter the topic and any key points you want covered.")
 
-    # This is the ONLY prompt area
     prompt = st.text_area(
         label="",
         placeholder="Example: Create an 8-slide PPT on agentic AI for non-technical business leaders...",
         height=160,
     )
 
-    generate = st.button("✨ Generate PPT", use_container_width=True)
+    generate = st.button("Create a presentation with AI", use_container_width=True)
 
     progress_placeholder = st.empty()
     status_placeholder = st.empty()
     success_placeholder = st.empty()
-    download_placeholder = st.empty()
 
-    # ---------- ACTION ----------
     if generate:
         if not prompt.strip():
             st.warning("Please enter a topic.")
-            st.session_state["has_generated"] = False
+            st.session_state["ready"] = False
             st.session_state["ppt_bytes"] = None
         else:
-            st.session_state["has_generated"] = False
+            st.session_state["ready"] = False
             st.session_state["ppt_bytes"] = None
 
             prog = progress_placeholder.progress(0)
             status_placeholder.write("🧩 Preparing your request...")
+
             for i in range(1, 16):
                 prog.progress(i)
                 time.sleep(0.02)
@@ -154,17 +190,20 @@ with st.container(border=True):
 
                     ppt_bytes = build_ppt_from_spec(spec)
                     st.session_state["ppt_bytes"] = ppt_bytes
-                    st.session_state["has_generated"] = True
+                    st.session_state["ready"] = True
 
                     prog.progress(100)
+                    # ✅ update status so it no longer says "Building PPT..."
+                    status_placeholder.write("✅ Deck ready to download.")
                     success_placeholder.success("PPT generated successfully.")
 
-    # ---------- DOWNLOAD (inside the same card, only after generation) ----------
-    if st.session_state["has_generated"] and st.session_state["ppt_bytes"]:
-        download_placeholder.download_button(
-            label="⬇️ Download PPTX",
-            data=st.session_state["ppt_bytes"],
-            file_name="presentation.pptx",
-            mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
-            use_container_width=True,
-        )
+# ---------- DOWNLOAD BUTTON ----------
+if st.session_state["ready"] and st.session_state["ppt_bytes"]:
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.download_button(
+        label="⬇  DOWNLOAD PPTX",
+        data=st.session_state["ppt_bytes"],
+        file_name="presentation.pptx",
+        mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        use_container_width=True,
+    )
